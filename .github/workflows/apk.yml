@@ -1,1 +1,103 @@
-
+name: Build APK
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Crea progetto Android
+        run: |
+          mkdir -p apk/app/src/main/assets apk/app/src/main/res/values apk/app/src/main/res/mipmap-xxxhdpi apk/app/src/main/java/it/marco/miscela2t
+          cd apk
+          cat > settings.gradle.kts <<'EOT'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = "Miscela2T"
+          include(":app")
+          EOT
+          cat > build.gradle.kts <<'EOT'
+          plugins { id("com.android.application") version "8.5.2" apply false }
+          EOT
+          cat > app/build.gradle.kts <<'EOT'
+          plugins { id("com.android.application") }
+          android {
+              namespace = "it.marco.miscela2t"
+              compileSdk = 34
+              defaultConfig {
+                  applicationId = "it.marco.miscela2t"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_1_8
+                  targetCompatibility = JavaVersion.VERSION_1_8
+              }
+          }
+          EOT
+          cat > app/src/main/AndroidManifest.xml <<'EOT'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:label="Miscela 2T" android:theme="@style/AppTheme">
+                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOT
+          cat > app/src/main/res/values/themes.xml <<'EOT'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="android:Theme.DeviceDefault.NoActionBar">
+                  <item name="android:statusBarColor">#16282B</item>
+                  <item name="android:navigationBarColor">#16282B</item>
+                  <item name="android:windowBackground">#16282B</item>
+              </style>
+          </resources>
+          EOT
+          cat > app/src/main/java/it/marco/miscela2t/MainActivity.java <<'EOT'
+          package it.marco.miscela2t;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          public class MainActivity extends Activity {
+              private WebView web;
+              @Override protected void onCreate(Bundle state) {
+                  super.onCreate(state);
+                  web = new WebView(this);
+                  web.setBackgroundColor(0xFF16282B);
+                  setContentView(web);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  web.setWebViewClient(new WebViewClient());
+                  if (state == null) web.loadUrl("file:///android_asset/index.html");
+                  else web.restoreState(state);
+              }
+              @Override protected void onSaveInstanceState(Bundle out) {
+                  super.onSaveInstanceState(out);
+                  web.saveState(out);
+              }
+          }
+          EOT
+          cp ../index.html app/src/main/assets/index.html
+          cp ../icon-192.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: Compila APK
+        run: cd apk && gradle assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: miscela-apk
+          path: apk/app/build/outputs/apk/debug/app-debug.apk
